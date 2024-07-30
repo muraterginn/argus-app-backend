@@ -3,8 +3,8 @@ package server
 import (
 	"argus-app-backend/internal/config"
 	"argus-app-backend/internal/tlsconfig"
-	"bufio"
 	"crypto/tls"
+	"io"
 	"log"
 	"net"
 )
@@ -39,12 +39,16 @@ func StartTLSServer(cfg config.Config) error {
 
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
-	scanner := bufio.NewScanner(conn)
-	for scanner.Scan() {
-		message := scanner.Text()
+	buffer := make([]byte, 1024)
+	for {
+		n, err := conn.Read(buffer)
+		if err != nil {
+			if err != io.EOF {
+				log.Printf("Error reading from connection: %v", err)
+			}
+			break
+		}
+		message := string(buffer[:n])
 		log.Printf("Received message: %s", message)
-	}
-	if err := scanner.Err(); err != nil {
-		log.Printf("Error reading from connection: %v", err)
 	}
 }

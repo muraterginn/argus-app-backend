@@ -23,7 +23,8 @@ func SetupTLSConfig(certFile, keyFile string) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		ClientCAs:    caCertPool,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
+		//ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientAuth: tls.NoClientCert,
 	}
 
 	return tlsConfig, nil
