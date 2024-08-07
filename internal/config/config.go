@@ -7,9 +7,9 @@ import (
 )
 
 type Config struct {
-	ServerPort string `mapstructure:"SERVER_PORT"`
-	CertFile   string `mapstructure:"CERT_FILE"`
-	KeyFile    string `mapstructure:"KEY_FILE"`
+	TCPServerPort string `mapstructure:"TCP_SERVER_PORT"`
+	CertFile      string `mapstructure:"CERT_FILE"`
+	KeyFile       string `mapstructure:"KEY_FILE"`
 }
 
 func LoadConfig(path string) (config Config, err error) {

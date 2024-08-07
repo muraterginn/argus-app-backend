@@ -12,7 +12,7 @@ func main() {
 		log.Fatalf("Could not load config: %v", err)
 	}
 
-	err = server.StartTLSServer(cfg)
+	err = server.StartTCPServer(cfg)
 	if err != nil {
 		log.Fatalf("Failed to start TLS server: %v", err)
 	}

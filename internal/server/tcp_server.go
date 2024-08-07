@@ -7,15 +7,19 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 )
 
-func StartTLSServer(cfg config.Config) error {
+var clients = make(map[net.Conn]bool)
+var mu sync.Mutex
+
+func StartTCPServer(cfg config.Config) error {
 	tlsConfig, err := tlsconfig.SetupTLSConfig(cfg.CertFile, cfg.KeyFile)
 	if err != nil {
 		return err
 	}
 
-	ln, err := net.Listen("tcp", "127.0.0.1:"+cfg.ServerPort)
+	ln, err := net.Listen("tcp", "127.0.0.1:"+cfg.TCPServerPort)
 	if err != nil {
 		return err
 	}
@@ -24,7 +28,7 @@ func StartTLSServer(cfg config.Config) error {
 	defer tlsListener.Close()
 
 	addr := tlsListener.Addr().String()
-	log.Printf("TLS server started on %s", addr)
+	log.Printf("TCP server started on %s", addr)
 
 	for {
 		conn, err := tlsListener.Accept()
@@ -33,12 +37,22 @@ func StartTLSServer(cfg config.Config) error {
 			continue
 		}
 
+		mu.Lock()
+		clients[conn] = true
+		mu.Unlock()
+
 		go handleConnection(conn)
 	}
 }
 
 func handleConnection(conn net.Conn) {
-	defer conn.Close()
+	defer func() {
+		mu.Lock()
+		delete(clients, conn)
+		mu.Unlock()
+		conn.Close()
+	}()
+
 	buffer := make([]byte, 1024)
 	for {
 		n, err := conn.Read(buffer)
@@ -50,5 +64,19 @@ func handleConnection(conn net.Conn) {
 		}
 		message := string(buffer[:n])
 		log.Printf("Received message: %s", message)
+		broadcastMessage(message, conn)
+	}
+}
+
+func broadcastMessage(message string, sender net.Conn) {
+	mu.Lock()
+	defer mu.Unlock()
+	for client := range clients {
+		if client != sender {
+			_, err := client.Write([]byte(message))
+			if err != nil {
+				log.Printf("Error broadcasting to client: %v", err)
+			}
+		}
 	}
 }
