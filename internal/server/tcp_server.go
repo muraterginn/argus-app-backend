@@ -63,7 +63,7 @@ func handleConnection(conn net.Conn) {
 			break
 		}
 		message := string(buffer[:n])
-		log.Printf("Received message: %s", message)
+		log.Printf("%s", message)
 		broadcastMessage(message, conn)
 	}
 }
