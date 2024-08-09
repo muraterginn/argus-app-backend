@@ -3,10 +3,12 @@ package server
 import (
 	"argus-app-backend/internal/config"
 	"argus-app-backend/internal/tlsconfig"
+	"argus-app-backend/internal/utils"
 	"crypto/tls"
 	"io"
 	"log"
 	"net"
+	"strings"
 	"sync"
 )
 
@@ -53,7 +55,7 @@ func handleConnection(conn net.Conn) {
 		conn.Close()
 	}()
 
-	buffer := make([]byte, 1024)
+	buffer := make([]byte, 16384)
 	for {
 		n, err := conn.Read(buffer)
 		if err != nil {
@@ -63,7 +65,16 @@ func handleConnection(conn net.Conn) {
 			break
 		}
 		message := string(buffer[:n])
-		log.Printf("%s", message)
+
+		if strings.HasPrefix(message, "[ACCOUNT]") {
+			jsonData, err := utils.ParseMessageToJSON(message)
+			if err != nil {
+				log.Printf("Error parsing message to JSON: %v", err)
+				continue
+			}
+			message = jsonData
+		}
+
 		broadcastMessage(message, conn)
 	}
 }
