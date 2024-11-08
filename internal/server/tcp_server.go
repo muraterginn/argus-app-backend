@@ -5,9 +5,11 @@ import (
 	"argus-app-backend/internal/tlsconfig"
 	"argus-app-backend/internal/utils"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"strings"
 	"sync"
 )
@@ -21,7 +23,7 @@ func StartTCPServer(cfg config.Config) error {
 		return err
 	}
 
-	ln, err := net.Listen("tcp", "127.0.0.1:"+cfg.TCPServerPort)
+	ln, err := net.Listen("tcp", GetLocalIPv4Address()+":"+cfg.TCPServerPort)
 	if err != nil {
 		return err
 	}
@@ -30,7 +32,7 @@ func StartTCPServer(cfg config.Config) error {
 	defer tlsListener.Close()
 
 	addr := tlsListener.Addr().String()
-	log.Printf("TCP server started on %s", addr)
+	log.Printf("TCP server started on %s and waiting for connections...", addr)
 
 	for {
 		conn, err := tlsListener.Accept()
@@ -39,12 +41,53 @@ func StartTCPServer(cfg config.Config) error {
 			continue
 		}
 
+		remoteAddr := conn.RemoteAddr().String()
+		ip := strings.Split(remoteAddr, ":")[0]
+		if !isAllowedAddress(ip, cfg) {
+			log.Printf("Connection denied from %s", ip)
+			conn.Close()
+			continue
+		}
+
+		log.Printf("Connection accepted from %s", ip)
+
 		mu.Lock()
 		clients[conn] = true
 		mu.Unlock()
 
 		go handleConnection(conn)
 	}
+}
+
+func GetPublicIPv4Address() string {
+	response, err := http.Get("https://api.ipify.org?format=text")
+	if err != nil {
+		return "Error fetching public IP"
+	}
+	defer response.Body.Close()
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return "Error reading response body"
+	}
+
+	return string(body)
+}
+
+func GetLocalIPv4Address() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		log.Printf("Error getting local IP addresses: %v", err)
+		return "Error fetching local IP"
+	}
+
+	for _, addr := range addrs {
+		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() && ipNet.IP.To4() != nil {
+			return ipNet.IP.String()
+		}
+	}
+
+	return "Local IP not found"
 }
 
 func handleConnection(conn net.Conn) {
@@ -90,4 +133,19 @@ func broadcastMessage(message string, sender net.Conn) {
 			}
 		}
 	}
+}
+
+func isAllowedAddress(ip string, cfg config.Config) bool {
+	if len(cfg.AllowedAddresses) == 0 {
+		log.Println("No allowed addresses specified. Connection denied by default.")
+		return false
+	}
+	for _, allowed := range cfg.AllowedAddresses {
+		fmt.Print(allowed)
+		if strings.TrimSpace(allowed) == ip {
+			return true
+		}
+	}
+	log.Printf("IP %s is not in the allowed addresses list. Connection denied.", ip)
+	return false
 }
