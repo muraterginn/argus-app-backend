@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -13,6 +14,8 @@ type Config struct {
 	KeyFile          string   `mapstructure:"KEY_FILE"`
 	AllowedAddresses []string `mapstructure:"ALLOWED_ADDRESSES"`
 }
+
+var CurrentConfig Config
 
 func LoadConfig(path string) (config Config, err error) {
 	viper.AddConfigPath(path)
@@ -26,12 +29,25 @@ func LoadConfig(path string) (config Config, err error) {
 
 	err = viper.Unmarshal(&config)
 	if err == nil {
-		// Split allowed addresses by comma if not empty
 		allowedAddresses := viper.GetString("ALLOWED_ADDRESSES")
 		if allowedAddresses != "" {
 			config.AllowedAddresses = strings.Split(allowedAddresses, ",")
 		}
 	}
-
+	CurrentConfig = config
 	return
+}
+
+func StartConfigReloader(path string, interval time.Duration) {
+	go func() {
+		for {
+			time.Sleep(interval)
+			newConfig, err := LoadConfig(path)
+			if err != nil {
+				log.Printf("Error reloading config: %v", err)
+			} else {
+				CurrentConfig = newConfig
+			}
+		}
+	}()
 }

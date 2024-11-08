@@ -5,7 +5,7 @@ import (
 	"argus-app-backend/internal/tlsconfig"
 	"argus-app-backend/internal/utils"
 	"crypto/tls"
-	"fmt"
+	"encoding/json"
 	"io"
 	"log"
 	"net"
@@ -43,7 +43,7 @@ func StartTCPServer(cfg config.Config) error {
 
 		remoteAddr := conn.RemoteAddr().String()
 		ip := strings.Split(remoteAddr, ":")[0]
-		if !isAllowedAddress(ip, cfg) {
+		if !isAllowedAddress(ip) {
 			log.Printf("Connection denied from %s", ip)
 			conn.Close()
 			continue
@@ -118,6 +118,15 @@ func handleConnection(conn net.Conn) {
 			message = jsonData
 		}
 
+		// Gelen mesajı JSON olarak ekranda yazdır
+		var jsonOutput map[string]interface{}
+		if err := json.Unmarshal([]byte(message), &jsonOutput); err == nil {
+			formattedJSON, _ := json.MarshalIndent(jsonOutput, "", "  ")
+			log.Printf("Received JSON message:\n%s", formattedJSON)
+		} else {
+			log.Printf("Received non-JSON message: %s", message)
+		}
+
 		broadcastMessage(message, conn)
 	}
 }
@@ -135,13 +144,12 @@ func broadcastMessage(message string, sender net.Conn) {
 	}
 }
 
-func isAllowedAddress(ip string, cfg config.Config) bool {
-	if len(cfg.AllowedAddresses) == 0 {
+func isAllowedAddress(ip string) bool {
+	if len(config.CurrentConfig.AllowedAddresses) == 0 {
 		log.Println("No allowed addresses specified. Connection denied by default.")
 		return false
 	}
-	for _, allowed := range cfg.AllowedAddresses {
-		fmt.Print(allowed)
+	for _, allowed := range config.CurrentConfig.AllowedAddresses {
 		if strings.TrimSpace(allowed) == ip {
 			return true
 		}
